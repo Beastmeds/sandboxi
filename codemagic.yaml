@@ -1,0 +1,58 @@
+workflows:
+  ios-build:
+    name: BeastSandbox IPA Build
+    max_build_duration: 60
+    instance_type: mac_mini_m1
+
+    environment:
+      ios_signing:
+        distribution_type: ad_hoc
+        bundle_identifier: com.beastmeds.BeastSandbox
+      vars:
+        XCODE_PROJECT: "BeastSandbox.xcodeproj"
+        XCODE_SCHEME: "BeastSandbox"
+        BUNDLE_ID: "com.beastmeds.BeastSandbox"
+      xcode: latest
+      cocoapods: default
+
+    scripts:
+      - name: Set bundle identifier
+        script: |
+          cd $CM_BUILD_DIR
+          /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" BeastSandbox/Info.plist
+
+      - name: Build unsigned IPA (for ESign)
+        script: |
+          cd $CM_BUILD_DIR
+          xcodebuild \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            ONLY_ACTIVE_ARCH=NO \
+            build
+
+      - name: Package into IPA
+        script: |
+          cd $CM_BUILD_DIR
+          APP_PATH=$(find build -name "*.app" | head -1)
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r BeastSandbox.ipa Payload/
+          echo "IPA created at: $CM_BUILD_DIR/BeastSandbox.ipa"
+
+    artifacts:
+      - BeastSandbox.ipa
+      - build/**/*.app
+
+    publishing:
+      email:
+        recipients:
+          - beastmeds@gmail.com
+        notify:
+          success: true
+          failure: true
